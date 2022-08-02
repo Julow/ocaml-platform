@@ -132,17 +132,20 @@ module Switch = struct
     in
     Cmd.run opam_opts
       Bos.Cmd.(
-        v "switch" % "create" % "--no-switch" % switch_name %% invariant_args)
+        v "switch" % "create" % "--repositories"
+        % "default,beta=git+https://github.com/ocaml/ocaml-beta-repository.git"
+        % "--no-switch" % switch_name %% invariant_args)
 
   let remove opam_opts name =
     Cmd.run_s opam_opts Bos.Cmd.(v "switch" % "remove" % name)
 end
 
 module Repository = struct
-  let add opam_opts ~url name =
+  let add opam_opts ~path name =
     Cmd.run opam_opts
       Bos.Cmd.(
-        v "repository" % "add" % "--this-switch" % "-k" % "local" % name % url)
+        v "repository" % "add" % "--this-switch" % "-k" % "local" % name
+        % p path)
 
   let remove opam_opts name =
     Cmd.run opam_opts
