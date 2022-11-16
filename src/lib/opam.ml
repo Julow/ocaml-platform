@@ -224,6 +224,13 @@ module Show = struct
     Cmd.run_s opam_opts Bos.Cmd.(v "show" % "-f" % "pin" % pkg_name)
 end
 
+module Pin = struct
+  let add opam_opts ?(no_action = false) ~kind pkg target =
+    let open Bos.Cmd in
+    let no_action = if no_action then v "--no-action" else empty in
+    Cmd.run opam_opts (v "pin" % "add" %% no_action % "-k" % kind % pkg % target)
+end
+
 module List_ = struct
   let compiler opam_opts () =
     Cmd.run_1l opam_opts

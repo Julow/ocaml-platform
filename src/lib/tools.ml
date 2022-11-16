@@ -64,14 +64,15 @@ module Communication = struct
   let enter_install_stage () = Logs.app (fun m -> m "* Installing tools...")
 
   let tell_version_result tool r ocaml_version =
+    let pkg_will_be bname action_s =
+      Logs.app (fun m ->
+          let version = Binary_package.ver bname in
+          m "  -> %s.%s will be %s" tool.name version action_s)
+    in
     match r with
     | `Skip -> Logs.app (fun m -> m "  -> %s is already installed" tool.name)
-    | `Install (version, Some _, _) ->
-        let action_s = "built from source" in
-        Logs.app (fun m -> m "  -> %s.%s will be %s" tool.name version action_s)
-    | `Install (version, None, _) ->
-        let action_s = "installed from cache" in
-        Logs.app (fun m -> m "  -> %s.%s will be %s" tool.name version action_s)
+    | `Install (Some _, bname) -> pkg_will_be bname "built from source"
+    | `Install (None, bname) -> pkg_will_be bname "installed from cache"
     | `Not_available ->
         Logs.warn (fun m ->
             m "%s cannot be installed with OCaml %s" tool.name ocaml_version)
@@ -214,7 +215,7 @@ let should_install_pkg opam_opts ~version_list ~ocaml_version ~cache tool =
             in
             Some build
         in
-        `Install (version, build, Binary_package.to_string bname)
+        `Install (build, bname)
     | Error `Not_found -> `Not_available
     | Error (`Msg _ as err) -> `Error err
 
@@ -239,11 +240,11 @@ let install opam_opts tools =
         Communication.tell_version_result tool action ocaml_version;
         match action with
         | `Skip -> Ok acc
-        | `Install (_, Some build, install) ->
-            let to_build = ((tool.name, install), build) :: to_build in
+        | `Install (Some build, bname) ->
+            let to_build = ((tool.name, bname), build) :: to_build in
             Ok (to_build, in_cache, non_installable)
-        | `Install (_, None, install) ->
-            let in_cache = (tool.name, install) :: in_cache in
+        | `Install (None, bname) ->
+            let in_cache = (tool.name, bname) :: in_cache in
             Ok (to_build, in_cache, non_installable)
         | `Not_available -> Ok (to_build, in_cache, tool.name :: non_installable)
         | `Error err -> Error err)
@@ -256,11 +257,10 @@ let install opam_opts tools =
        let n = List.length tools_to_build in
        Ok
          (List.fold_left
-            (fun (tools_built, tools_failed)
-                 (i, ((tool_name, tool_version), build)) ->
+            (fun (tools_built, tools_failed) (i, ((tool_name, bname), build)) ->
               Communication.building_tool tool_name i n;
               match build sandbox with
-              | Ok () -> ((tool_name, tool_version) :: tools_built, tools_failed)
+              | Ok () -> ((tool_name, bname) :: tools_built, tools_failed)
               | Error e ->
                   Communication.error_in_build tool_name;
                   (tools_built, (tool_name, e) :: tools_failed))
@@ -272,9 +272,19 @@ let install opam_opts tools =
    let tools_to_install = tools_in_cache @ tools_built in
    let* () =
      Cache.with_repos_enabled opam_opts cache @@ fun () ->
-     Opam.install
-       { opam_opts with log_height = Some 10 }
-       (List.map snd tools_to_install)
+     let opam_opts = { opam_opts with log_height = Some 10 } in
+     let* () =
+       Result.List.fold_left
+         (fun () (_, bname) ->
+           Opam.Pin.add opam_opts ~no_action:true ~kind:"version"
+             (Binary_package.name bname)
+             (Binary_package.ver bname))
+         () tools_to_install
+     in
+     Opam.install opam_opts
+       (List.map
+          (fun (_, bname) -> Binary_package.to_string bname)
+          tools_to_install)
    in
    Communication.conclusion_installing tools_to_install;
    Ok tools_failed)

@@ -88,6 +88,17 @@ module Show : sig
   val pin : GlobalOpts.t -> string -> (string, [> `Msg of string ]) result
 end
 
+module Pin : sig
+  val add :
+    GlobalOpts.t ->
+    ?no_action:bool ->
+    kind:string ->
+    string ->
+    string ->
+    (unit, [> `Msg of string ]) result
+  (** [opam pin add -k KIND PACKAGE TARGET] *)
+end
+
 module List_ : sig
   val compiler :
     GlobalOpts.t -> unit -> (string option, [> `Msg of string ]) result
