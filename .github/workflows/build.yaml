@@ -171,7 +171,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-        fetch-depth: 0
+        with:
+          fetch-depth: 0
 
       - name: Download build artifacts
         uses: actions/download-artifact@v3
